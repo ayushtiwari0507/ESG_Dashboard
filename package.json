@@ -1,0 +1,20 @@
+{
+  "name": "esg-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ESG & Environmental Data Management Platform — root workspace",
+  "scripts": {
+    "validate:api-spec": "npx --yes @redocly/cli lint api-specs/openapi.yaml",
+    "validate:api-spec:bundle": "npx --yes @redocly/cli bundle api-specs/openapi.yaml -o api-specs/openapi-bundled.yaml",
+    "cleanup": "./scripts/cleanup.sh",
+    "cleanup:all": "./scripts/cleanup.sh --all",
+    "cleanup:docker": "./scripts/cleanup.sh --docker",
+    "cleanup:build": "./scripts/cleanup.sh --build",
+    "cleanup:logs": "./scripts/cleanup.sh --logs",
+    "cleanup:test": "./scripts/cleanup.sh --test",
+    "setup": "./scripts/setup-env.sh"
+  },
+  "devDependencies": {
+    "@redocly/cli": "^1.34.0"
+  }
+}
