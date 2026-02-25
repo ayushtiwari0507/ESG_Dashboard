@@ -4,7 +4,7 @@ import axios from 'axios';
 const API_VERSION = '2026-02-24';
 
 const api = axios.create({
-  baseURL: baseURL: `https://esg-dashboard-2.onrender.com/api/${API_VERSION}`,
+  baseURL: baseURL: 'https://esg-dashboard-2.onrender.com/api/${API_VERSION}',
   headers: { 'Content-Type': 'application/json' },
 });
 
