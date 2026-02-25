@@ -1,0 +1,39 @@
+# Redocly API spec linting configuration
+# Validates OpenAPI spec for correctness and best practices.
+#
+# Run: npm run validate:api-spec
+# Or:  npx @redocly/cli lint api-specs/openapi.yaml
+
+extends:
+  - recommended
+
+rules:
+  # Enforce operation IDs on all endpoints
+  operation-operationId: warn
+  
+  # Require descriptions on operations
+  operation-description: off
+  
+  # Require tags on operations
+  operation-tag-defined: error
+  
+  # No unused components
+  no-unused-components: warn
+  
+  # Security scheme defined
+  security-defined: error
+  
+  # Path parameters must be defined
+  path-declaration-must-exist: error
+  
+  # No ambiguous paths
+  no-ambiguous-paths: error
+
+  # Paths should not end with slash
+  no-path-trailing-slash: error
+
+  # Info contact
+  info-contact: off
+
+  # Info license
+  info-license: off

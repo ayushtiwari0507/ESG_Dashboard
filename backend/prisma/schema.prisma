@@ -1,0 +1,441 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum UserRole {
+  admin
+  site_user
+  viewer
+}
+
+enum GHGScope {
+  scope_1
+  scope_2
+  scope_3
+}
+
+enum Scope1Category {
+  stationary
+  mobile
+  process
+  fugitive
+}
+
+enum Scope2Method {
+  location_based
+  market_based
+}
+
+enum DataStatus {
+  draft
+  submitted
+  approved
+}
+
+enum WasteType {
+  hazardous
+  non_hazardous
+}
+
+enum WasteDisposal {
+  recycled
+  co_processed
+  landfilled
+  incinerated
+  other
+}
+
+enum Scope3Category {
+  purchased_goods
+  capital_goods
+  fuel_energy
+  upstream_transport
+  waste_operations
+  business_travel
+  employee_commuting
+  upstream_leased
+  downstream_transport
+  processing_sold
+  use_of_sold
+  end_of_life
+  downstream_leased
+  franchises
+  investments
+}
+
+// ============================================================
+// CORE TABLES
+// ============================================================
+
+model Site {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique @db.VarChar(100)
+  code      String   @unique @db.VarChar(10)
+  location  String?  @db.VarChar(255)
+  country   String   @default("India") @db.VarChar(100)
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  userSites        UserSite[]
+  productionData   ProductionData[]
+  energyData       EnergyData[]
+  waterData        WaterData[]
+  etpData          ETPData[]
+  wasteData        WasteData[]
+  ghgEmissions     GHGEmission[]
+  targets          Target[]
+  salesData        SalesData[]
+  airEmissionsData AirEmissionsData[]
+  recoveryData     RecoveryData[]
+
+  @@map("sites")
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique @db.VarChar(255)
+  passwordHash String   @map("password_hash") @db.VarChar(255)
+  fullName     String   @map("full_name") @db.VarChar(150)
+  role         UserRole @default(viewer)
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  userSites       UserSite[]
+  auditLogs       AuditLog[]
+  emissionFactors EmissionFactor[]
+  targets         Target[]
+
+  @@map("users")
+}
+
+model UserSite {
+  userId Int @map("user_id")
+  siteId Int @map("site_id")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@id([userId, siteId])
+  @@map("user_sites")
+}
+
+// ============================================================
+// REFERENCE / MASTER TABLES
+// ============================================================
+
+model Unit {
+  id        Int      @id @default(autoincrement())
+  name      String   @db.VarChar(50)
+  category  String   @db.VarChar(50)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  emissionFactors    EmissionFactor[]
+  conversionFrom     ConversionFactor[] @relation("FromUnit")
+  conversionTo       ConversionFactor[] @relation("ToUnit")
+  productionData     ProductionData[]
+  ghgEmissions       GHGEmission[]
+  targets            Target[]
+
+  @@map("units")
+}
+
+model EmissionFactor {
+  id             Int      @id @default(autoincrement())
+  name           String   @db.VarChar(200)
+  source         String?  @db.VarChar(200)
+  scope          GHGScope
+  activityUnitId Int      @map("activity_unit_id")
+  factorValue    Decimal  @map("factor_value") @db.Decimal(18, 8)
+  co2Factor      Decimal? @map("co2_factor") @db.Decimal(18, 8)
+  ch4Factor      Decimal? @map("ch4_factor") @db.Decimal(18, 8)
+  n2oFactor      Decimal? @map("n2o_factor") @db.Decimal(18, 8)
+  validFrom      DateTime @map("valid_from") @db.Date
+  validTo        DateTime? @map("valid_to") @db.Date
+  version        Int      @default(1)
+  createdBy      Int?     @map("created_by")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  activityUnit Unit          @relation(fields: [activityUnitId], references: [id])
+  creator      User?         @relation(fields: [createdBy], references: [id])
+  ghgEmissions GHGEmission[]
+
+  @@map("emission_factors")
+}
+
+model GlobalWarmingPotential {
+  id        Int      @id @default(autoincrement())
+  gasName   String   @map("gas_name") @db.VarChar(100)
+  formula   String?  @db.VarChar(50)
+  gwp100yr  Decimal  @map("gwp_100yr") @db.Decimal(10, 2)
+  source    String?  @db.VarChar(100)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  @@map("global_warming_potentials")
+}
+
+model ConversionFactor {
+  id          Int      @id @default(autoincrement())
+  fromUnitId  Int      @map("from_unit_id")
+  toUnitId    Int      @map("to_unit_id")
+  factor      Decimal  @db.Decimal(18, 8)
+  description String?  @db.VarChar(200)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  fromUnit Unit @relation("FromUnit", fields: [fromUnitId], references: [id])
+  toUnit   Unit @relation("ToUnit", fields: [toUnitId], references: [id])
+
+  @@map("conversion_factors")
+}
+
+// ============================================================
+// DATA ENTRY TABLES
+// ============================================================
+
+model ProductionData {
+  id         Int        @id @default(autoincrement())
+  siteId     Int        @map("site_id")
+  month      Int
+  year       Int
+  quantityMt Decimal    @map("quantity_mt") @db.Decimal(14, 4)
+  unitId     Int?       @map("unit_id")
+  status     DataStatus @default(draft)
+  enteredBy  Int        @map("entered_by")
+  createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt  DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  site Site  @relation(fields: [siteId], references: [id])
+  unit Unit? @relation(fields: [unitId], references: [id])
+
+  @@unique([siteId, month, year])
+  @@map("production_data")
+}
+
+model EnergyData {
+  id             Int        @id @default(autoincrement())
+  siteId         Int        @map("site_id")
+  month          Int
+  year           Int
+  electricityKwh Decimal    @default(0) @map("electricity_kwh") @db.Decimal(14, 4)
+  steamMt        Decimal    @default(0) @map("steam_mt") @db.Decimal(14, 4)
+  coalMt         Decimal    @default(0) @map("coal_mt") @db.Decimal(14, 4)
+  dieselLitres   Decimal    @default(0) @map("diesel_litres") @db.Decimal(14, 4)
+  foLitres       Decimal    @default(0) @map("fo_litres") @db.Decimal(14, 4)
+  lpgKg          Decimal    @default(0) @map("lpg_kg") @db.Decimal(14, 4)
+  pngScm         Decimal    @default(0) @map("png_scm") @db.Decimal(14, 4)
+  renewableKwh   Decimal    @default(0) @map("renewable_kwh") @db.Decimal(14, 4)
+  totalEnergyGj  Decimal?   @map("total_energy_gj") @db.Decimal(14, 4)
+  status         DataStatus @default(draft)
+  enteredBy      Int        @map("entered_by")
+  createdAt      DateTime   @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt      DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  site Site @relation(fields: [siteId], references: [id])
+
+  @@unique([siteId, month, year])
+  @@map("energy_data")
+}
+
+model WaterData {
+  id                  Int        @id @default(autoincrement())
+  siteId              Int        @map("site_id")
+  month               Int
+  year                Int
+  freshWaterKl        Decimal    @default(0) @map("fresh_water_kl") @db.Decimal(14, 4)
+  recycledWaterKl     Decimal    @default(0) @map("recycled_water_kl") @db.Decimal(14, 4)
+  dischargeKl         Decimal    @default(0) @map("discharge_kl") @db.Decimal(14, 4)
+  totalConsumptionKl  Decimal?   @map("total_consumption_kl") @db.Decimal(14, 4)
+  status              DataStatus @default(draft)
+  enteredBy           Int        @map("entered_by")
+  createdAt           DateTime   @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt           DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  site Site @relation(fields: [siteId], references: [id])
+
+  @@unique([siteId, month, year])
+  @@map("water_data")
+}
+
+model ETPData {
+  id         Int        @id @default(autoincrement())
+  siteId     Int        @map("site_id")
+  month      Int
+  year       Int
+  codMgPerL  Decimal?   @map("cod_mg_per_l") @db.Decimal(10, 4)
+  bodMgPerL  Decimal?   @map("bod_mg_per_l") @db.Decimal(10, 4)
+  tssMgPerL  Decimal?   @map("tss_mg_per_l") @db.Decimal(10, 4)
+  tdsMgPerL  Decimal?   @map("tds_mg_per_l") @db.Decimal(10, 4)
+  sludgeMt   Decimal?   @map("sludge_mt") @db.Decimal(10, 4)
+  status     DataStatus @default(draft)
+  enteredBy  Int        @map("entered_by")
+  createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt  DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  site Site @relation(fields: [siteId], references: [id])
+
+  @@unique([siteId, month, year])
+  @@map("etp_data")
+}
+
+model WasteData {
+  id             Int           @id @default(autoincrement())
+  siteId         Int           @map("site_id")
+  month          Int
+  year           Int
+  wasteType      WasteType     @map("waste_type")
+  disposalMethod WasteDisposal @map("disposal_method")
+  quantityMt     Decimal       @map("quantity_mt") @db.Decimal(14, 4)
+  description    String?       @db.VarChar(255)
+  status         DataStatus    @default(draft)
+  enteredBy      Int           @map("entered_by")
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt      DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  site Site @relation(fields: [siteId], references: [id])
+
+  @@map("waste_data")
+}
+
+model GHGEmission {
+  id                 Int            @id @default(autoincrement())
+  siteId             Int            @map("site_id")
+  month              Int
+  year               Int
+  scope              GHGScope
+  scope1Category     Scope1Category?  @map("scope1_category")
+  scope2Method       Scope2Method?    @map("scope2_method")
+  scope3Category     Scope3Category?  @map("scope3_category")
+  sourceDescription  String         @map("source_description") @db.VarChar(255)
+  activityData       Decimal        @map("activity_data") @db.Decimal(18, 6)
+  activityUnitId     Int            @map("activity_unit_id")
+  emissionFactorId   Int            @map("emission_factor_id")
+  co2Tonnes          Decimal?       @map("co2_tonnes") @db.Decimal(14, 6)
+  ch4Tonnes          Decimal?       @map("ch4_tonnes") @db.Decimal(14, 6)
+  n2oTonnes          Decimal?       @map("n2o_tonnes") @db.Decimal(14, 6)
+  co2eTonnes         Decimal        @map("co2e_tonnes") @db.Decimal(14, 6)
+  status             DataStatus     @default(draft)
+  enteredBy          Int            @map("entered_by")
+  createdAt          DateTime       @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt          DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  site           Site           @relation(fields: [siteId], references: [id])
+  activityUnit   Unit           @relation(fields: [activityUnitId], references: [id])
+  emissionFactor EmissionFactor @relation(fields: [emissionFactorId], references: [id])
+
+  @@index([siteId, year, month])
+  @@index([scope])
+  @@map("ghg_emissions")
+}
+
+// ============================================================
+// TARGETS
+// ============================================================
+
+model Target {
+  id            Int      @id @default(autoincrement())
+  siteId        Int?     @map("site_id")
+  metricName    String   @map("metric_name") @db.VarChar(100)
+  targetYear    Int      @map("target_year")
+  targetValue   Decimal  @map("target_value") @db.Decimal(14, 4)
+  unitId        Int?     @map("unit_id")
+  baselineYear  Int?     @map("baseline_year")
+  baselineValue Decimal? @map("baseline_value") @db.Decimal(14, 4)
+  createdBy     Int      @map("created_by")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  site    Site? @relation(fields: [siteId], references: [id])
+  unit    Unit? @relation(fields: [unitId], references: [id])
+  creator User  @relation(fields: [createdBy], references: [id])
+
+  @@map("targets")
+}
+
+// ============================================================
+// AUDIT LOG (Immutable)
+// ============================================================
+
+model SalesData {
+  id         Int        @id @default(autoincrement())
+  siteId     Int        @map("site_id")
+  month      Int
+  year       Int
+  quantityMt Decimal    @map("quantity_mt") @db.Decimal(14, 4)
+  revenueLkr Decimal?   @map("revenue_lkr") @db.Decimal(14, 2)
+  status     DataStatus @default(draft)
+  enteredBy  Int        @map("entered_by")
+  createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt  DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  site Site @relation(fields: [siteId], references: [id])
+
+  @@unique([siteId, month, year])
+  @@map("sales_data")
+}
+
+model AirEmissionsData {
+  id         Int        @id @default(autoincrement())
+  siteId     Int        @map("site_id")
+  month      Int
+  year       Int
+  soxKg      Decimal?   @map("sox_kg") @db.Decimal(14, 4)
+  noxKg      Decimal?   @map("nox_kg") @db.Decimal(14, 4)
+  pmKg       Decimal?   @map("pm_kg") @db.Decimal(14, 4)
+  vocKg      Decimal?   @map("voc_kg") @db.Decimal(14, 4)
+  stackId    String?    @map("stack_id") @db.VarChar(50)
+  status     DataStatus @default(draft)
+  enteredBy  Int        @map("entered_by")
+  createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt  DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  site Site @relation(fields: [siteId], references: [id])
+
+  @@unique([siteId, month, year, stackId])
+  @@map("air_emissions_data")
+}
+
+model RecoveryData {
+  id           Int        @id @default(autoincrement())
+  siteId       Int        @map("site_id")
+  month        Int
+  year         Int
+  materialName String     @map("material_name") @db.VarChar(200)
+  quantityMt   Decimal    @map("quantity_mt") @db.Decimal(14, 4)
+  revenueLkr   Decimal?   @map("revenue_lkr") @db.Decimal(14, 2)
+  status       DataStatus @default(draft)
+  enteredBy    Int        @map("entered_by")
+  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt    DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  site Site @relation(fields: [siteId], references: [id])
+
+  @@map("recovery_data")
+}
+
+model AuditLog {
+  id        BigInt   @id @default(autoincrement())
+  tableName String   @map("table_name") @db.VarChar(100)
+  recordId  Int      @map("record_id")
+  action    String   @db.VarChar(10)
+  oldValue  Json?    @map("old_value")
+  newValue  Json?    @map("new_value")
+  changedBy Int      @map("changed_by")
+  changedAt DateTime @default(now()) @map("changed_at") @db.Timestamptz()
+
+  user User @relation(fields: [changedBy], references: [id])
+
+  @@index([tableName, recordId])
+  @@index([changedBy])
+  @@index([changedAt])
+  @@map("audit_logs")
+}

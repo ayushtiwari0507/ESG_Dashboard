@@ -1,0 +1,1643 @@
+openapi: 3.0.3
+info:
+  title: ESG & Environmental Data Management Platform API
+  description: |
+    REST API for the ESG Environmental Data Management Platform.
+    Manages energy, water, waste, GHG emissions, air emissions, sales, recovery,
+    and production data across manufacturing sites.
+  version: 2026-02-24
+  contact:
+    name: ESG Platform Team
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:4000/api/2026-02-24
+    description: Local development
+  - url: http://localhost:3000/api/2026-02-24
+    description: Docker (via nginx proxy)
+
+tags:
+  - name: Auth
+    description: Authentication endpoints
+  - name: Sites
+    description: Manufacturing site management
+  - name: Energy
+    description: Energy consumption data entry
+  - name: Production
+    description: Production output data
+  - name: Water
+    description: Water consumption data
+  - name: Waste
+    description: Waste generation data
+  - name: ETP
+    description: Effluent Treatment Plant data
+  - name: GHG
+    description: Greenhouse gas emissions data
+  - name: Air Emissions
+    description: Air emissions (SOx, NOx, PM, VOC)
+  - name: Sales
+    description: Sales data
+  - name: Recovery
+    description: Material recovery data
+  - name: Dashboard
+    description: Analytics & KPI dashboard
+  - name: Users
+    description: User management (admin only)
+  - name: Audit
+    description: Audit log trail (admin only)
+  - name: Telemetry
+    description: Frontend error & performance telemetry
+  - name: Health
+    description: Service health check
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from POST /auth/login
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+
+    ValidationError:
+      type: object
+      properties:
+        error:
+          type: string
+          example: Validation error
+        details:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              message:
+                type: string
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 1
+
+    LoginResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        user:
+          type: object
+          properties:
+            id:
+              type: integer
+            email:
+              type: string
+            fullName:
+              type: string
+            role:
+              type: string
+              enum: [admin, site_user, viewer]
+            siteIds:
+              type: array
+              items:
+                type: integer
+
+    UserProfile:
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        fullName:
+          type: string
+        role:
+          type: string
+        sites:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              name:
+                type: string
+              code:
+                type: string
+
+    Site:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        code:
+          type: string
+        location:
+          type: string
+        isActive:
+          type: boolean
+
+    SiteRef:
+      type: object
+      properties:
+        name:
+          type: string
+        code:
+          type: string
+
+    # ── Data Entry Common ──
+    DataFilters:
+      type: object
+      properties:
+        siteId:
+          type: integer
+        month:
+          type: integer
+          minimum: 1
+          maximum: 12
+        year:
+          type: integer
+          minimum: 2000
+          maximum: 2100
+
+    EnergyData:
+      type: object
+      required: [siteId, month, year]
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        siteId:
+          type: integer
+        month:
+          type: integer
+          minimum: 1
+          maximum: 12
+        year:
+          type: integer
+          minimum: 2000
+          maximum: 2100
+        electricityKwh:
+          type: number
+          minimum: 0
+          default: 0
+        steamMt:
+          type: number
+          minimum: 0
+          default: 0
+        coalMt:
+          type: number
+          minimum: 0
+          default: 0
+        dieselLitres:
+          type: number
+          minimum: 0
+          default: 0
+        foLitres:
+          type: number
+          minimum: 0
+          default: 0
+        lpgKg:
+          type: number
+          minimum: 0
+          default: 0
+        pngScm:
+          type: number
+          minimum: 0
+          default: 0
+        renewableKwh:
+          type: number
+          minimum: 0
+          default: 0
+        totalEnergyGj:
+          type: number
+          readOnly: true
+        site:
+          $ref: '#/components/schemas/SiteRef'
+
+    ProductionData:
+      type: object
+      required: [siteId, month, year, quantityMt]
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        siteId:
+          type: integer
+        month:
+          type: integer
+        year:
+          type: integer
+        quantityMt:
+          type: number
+          minimum: 0
+        site:
+          $ref: '#/components/schemas/SiteRef'
+
+    WaterData:
+      type: object
+      required: [siteId, month, year]
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        siteId:
+          type: integer
+        month:
+          type: integer
+        year:
+          type: integer
+        freshWaterKl:
+          type: number
+          minimum: 0
+          default: 0
+        recycledWaterKl:
+          type: number
+          minimum: 0
+          default: 0
+        dischargeKl:
+          type: number
+          minimum: 0
+          default: 0
+        totalConsumptionKl:
+          type: number
+          readOnly: true
+        site:
+          $ref: '#/components/schemas/SiteRef'
+
+    WasteData:
+      type: object
+      required: [siteId, month, year, wasteType, disposalMethod, quantityMt]
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        siteId:
+          type: integer
+        month:
+          type: integer
+        year:
+          type: integer
+        wasteType:
+          type: string
+          enum: [hazardous, non_hazardous]
+        disposalMethod:
+          type: string
+          enum: [recycled, co_processed, landfilled, incinerated, other]
+        quantityMt:
+          type: number
+          minimum: 0
+        description:
+          type: string
+          maxLength: 255
+        site:
+          $ref: '#/components/schemas/SiteRef'
+
+    ETPData:
+      type: object
+      required: [siteId, month, year]
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        siteId:
+          type: integer
+        month:
+          type: integer
+        year:
+          type: integer
+        codMgPerL:
+          type: number
+          minimum: 0
+        bodMgPerL:
+          type: number
+          minimum: 0
+        tssMgPerL:
+          type: number
+          minimum: 0
+        tdsMgPerL:
+          type: number
+          minimum: 0
+        sludgeMt:
+          type: number
+          minimum: 0
+        site:
+          $ref: '#/components/schemas/SiteRef'
+
+    GHGEmission:
+      type: object
+      required: [siteId, month, year, scope, sourceDescription, activityData, activityUnitId, emissionFactorId, co2eTonnes]
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        siteId:
+          type: integer
+        month:
+          type: integer
+        year:
+          type: integer
+        scope:
+          type: string
+          enum: [scope_1, scope_2, scope_3]
+        scope1Category:
+          type: string
+          enum: [stationary, mobile, process, fugitive]
+        scope2Method:
+          type: string
+          enum: [location_based, market_based]
+        scope3Category:
+          type: string
+          enum: [purchased_goods, capital_goods, fuel_energy, upstream_transport, waste_operations, business_travel, employee_commuting, upstream_leased, downstream_transport, processing_sold, use_of_sold, end_of_life, downstream_leased, franchises, investments]
+        sourceDescription:
+          type: string
+          maxLength: 255
+        activityData:
+          type: number
+          minimum: 0
+        activityUnitId:
+          type: integer
+        emissionFactorId:
+          type: integer
+        co2Tonnes:
+          type: number
+        ch4Tonnes:
+          type: number
+        n2oTonnes:
+          type: number
+        co2eTonnes:
+          type: number
+          minimum: 0
+        site:
+          $ref: '#/components/schemas/SiteRef'
+
+    AirEmissionsData:
+      type: object
+      required: [siteId, month, year]
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        siteId:
+          type: integer
+        month:
+          type: integer
+        year:
+          type: integer
+        soxKg:
+          type: number
+          minimum: 0
+        noxKg:
+          type: number
+          minimum: 0
+        pmKg:
+          type: number
+          minimum: 0
+        vocKg:
+          type: number
+          minimum: 0
+        stackId:
+          type: string
+          maxLength: 50
+        site:
+          $ref: '#/components/schemas/SiteRef'
+
+    SalesData:
+      type: object
+      required: [siteId, month, year, quantityMt]
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        siteId:
+          type: integer
+        month:
+          type: integer
+        year:
+          type: integer
+        quantityMt:
+          type: number
+          minimum: 0
+        revenueLkr:
+          type: number
+          minimum: 0
+        site:
+          $ref: '#/components/schemas/SiteRef'
+
+    RecoveryData:
+      type: object
+      required: [siteId, month, year, materialName, quantityMt]
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        siteId:
+          type: integer
+        month:
+          type: integer
+        year:
+          type: integer
+        materialName:
+          type: string
+          maxLength: 200
+        quantityMt:
+          type: number
+          minimum: 0
+        revenueLkr:
+          type: number
+          minimum: 0
+        site:
+          $ref: '#/components/schemas/SiteRef'
+
+    DashboardSummary:
+      type: object
+      properties:
+        year:
+          type: integer
+        siteId:
+          oneOf:
+            - type: integer
+            - type: string
+              enum: ['all']
+        totalScope1:
+          type: number
+        totalScope2:
+          type: number
+        totalScope3:
+          type: number
+        totalGroupEmissions:
+          type: number
+        carbonIntensity:
+          type: number
+        energyIntensity:
+          type: number
+        waterIntensity:
+          type: number
+        wasteIntensity:
+          type: number
+        renewableEnergyPct:
+          type: number
+        recoveryPct:
+          type: number
+        productionTotal:
+          type: number
+        totalEnergyGj:
+          type: number
+        totalWaterKl:
+          type: number
+        totalWasteMt:
+          type: number
+
+    SiteComparison:
+      type: object
+      properties:
+        siteId:
+          type: integer
+        siteName:
+          type: string
+        siteCode:
+          type: string
+        totalEnergyGj:
+          type: number
+        productionMt:
+          type: number
+        totalEmissions:
+          type: number
+
+    EmissionsTrend:
+      type: object
+      properties:
+        month:
+          type: integer
+        totalEnergyGj:
+          type: number
+        electricityKwh:
+          type: number
+        renewableKwh:
+          type: number
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        fullName:
+          type: string
+        role:
+          type: string
+          enum: [admin, site_user, viewer]
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        userSites:
+          type: array
+          items:
+            type: object
+            properties:
+              siteId:
+                type: integer
+              site:
+                $ref: '#/components/schemas/SiteRef'
+
+    CreateUser:
+      type: object
+      required: [email, password, fullName]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 255
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+        fullName:
+          type: string
+          minLength: 1
+          maxLength: 150
+        role:
+          type: string
+          enum: [admin, site_user, viewer]
+          default: viewer
+        isActive:
+          type: boolean
+          default: true
+        siteIds:
+          type: array
+          items:
+            type: integer
+
+    UpdateUser:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        fullName:
+          type: string
+        role:
+          type: string
+          enum: [admin, site_user, viewer]
+        isActive:
+          type: boolean
+        password:
+          type: string
+          minLength: 8
+        siteIds:
+          type: array
+          items:
+            type: integer
+
+    AuditLog:
+      type: object
+      properties:
+        id:
+          type: string
+        tableName:
+          type: string
+        recordId:
+          type: integer
+        action:
+          type: string
+          enum: [INSERT, UPDATE, DELETE]
+        oldValue:
+          type: object
+          nullable: true
+        newValue:
+          type: object
+          nullable: true
+        changedBy:
+          type: integer
+        changedAt:
+          type: string
+          format: date-time
+        user:
+          type: object
+          properties:
+            fullName:
+              type: string
+            email:
+              type: string
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid JWT token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Unauthorized
+    Forbidden:
+      description: Insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Forbidden
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Conflict:
+      description: Duplicate record
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    ValidationFailed:
+      description: Request body validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationError'
+
+security:
+  - bearerAuth: []
+
+paths:
+  # ── Health ──
+  /health:
+    get:
+      tags: [Health]
+      summary: Service health check
+      security: []
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  timestamp:
+                    type: string
+                    format: date-time
+
+  # ── Auth ──
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Authenticate user
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Too many login attempts (rate limited to 10/15min)
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Get current user profile
+      responses:
+        '200':
+          description: User profile with assigned sites
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ── Sites ──
+  /sites:
+    get:
+      tags: [Sites]
+      summary: List all active sites
+      responses:
+        '200':
+          description: Array of sites
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Site'
+
+  /sites/{id}:
+    get:
+      tags: [Sites]
+      summary: Get site details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Site details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Site'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ── Energy ──
+  /data/energy:
+    get:
+      tags: [Energy]
+      summary: List energy data
+      parameters:
+        - name: siteId
+          in: query
+          schema:
+            type: integer
+        - name: month
+          in: query
+          schema:
+            type: integer
+        - name: year
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Array of energy records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/EnergyData'
+    post:
+      tags: [Energy]
+      summary: Create energy entry (auto-calculates total GJ)
+      description: Only admin and site_user roles can create entries.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EnergyData'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnergyData'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /data/energy/{id}:
+    put:
+      tags: [Energy]
+      summary: Update energy entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EnergyData'
+      responses:
+        '200':
+          description: Updated record
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Energy]
+      summary: Delete energy entry (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ── Production ──
+  /data/production:
+    get:
+      tags: [Production]
+      summary: List production data
+      parameters:
+        - name: siteId
+          in: query
+          schema:
+            type: integer
+        - name: month
+          in: query
+          schema:
+            type: integer
+        - name: year
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Array of production records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProductionData'
+    post:
+      tags: [Production]
+      summary: Create production entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductionData'
+      responses:
+        '201':
+          description: Created
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  # ── Water ──
+  /data/water:
+    get:
+      tags: [Water]
+      summary: List water consumption data
+      parameters:
+        - name: siteId
+          in: query
+          schema:
+            type: integer
+        - name: month
+          in: query
+          schema:
+            type: integer
+        - name: year
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Array of water records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WaterData'
+    post:
+      tags: [Water]
+      summary: Create water entry (auto-calculates total consumption)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WaterData'
+      responses:
+        '201':
+          description: Created
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /data/water/{id}:
+    put:
+      tags: [Water]
+      summary: Update water entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Updated
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ── Waste ──
+  /data/waste:
+    get:
+      tags: [Waste]
+      summary: List waste data
+      parameters:
+        - name: siteId
+          in: query
+          schema:
+            type: integer
+        - name: month
+          in: query
+          schema:
+            type: integer
+        - name: year
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Array of waste records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WasteData'
+    post:
+      tags: [Waste]
+      summary: Create waste entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WasteData'
+      responses:
+        '201':
+          description: Created
+
+  /data/waste/{id}:
+    put:
+      tags: [Waste]
+      summary: Update waste entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Updated
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Waste]
+      summary: Delete waste entry (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ── ETP ──
+  /data/etp:
+    get:
+      tags: [ETP]
+      summary: List ETP data
+      parameters:
+        - name: siteId
+          in: query
+          schema:
+            type: integer
+        - name: month
+          in: query
+          schema:
+            type: integer
+        - name: year
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Array of ETP records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ETPData'
+    post:
+      tags: [ETP]
+      summary: Create ETP entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ETPData'
+      responses:
+        '201':
+          description: Created
+
+  /data/etp/{id}:
+    put:
+      tags: [ETP]
+      summary: Update ETP entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Updated
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [ETP]
+      summary: Delete ETP entry (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ── GHG ──
+  /data/ghg:
+    get:
+      tags: [GHG]
+      summary: List GHG emissions data
+      parameters:
+        - name: siteId
+          in: query
+          schema:
+            type: integer
+        - name: month
+          in: query
+          schema:
+            type: integer
+        - name: year
+          in: query
+          schema:
+            type: integer
+        - name: scope
+          in: query
+          schema:
+            type: string
+            enum: [scope_1, scope_2, scope_3]
+      responses:
+        '200':
+          description: Array of GHG records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GHGEmission'
+    post:
+      tags: [GHG]
+      summary: Create GHG emission entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GHGEmission'
+      responses:
+        '201':
+          description: Created
+
+  /data/ghg/{id}:
+    put:
+      tags: [GHG]
+      summary: Update GHG entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Updated
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [GHG]
+      summary: Delete GHG entry (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ── Air Emissions ──
+  /data/air-emissions:
+    get:
+      tags: [Air Emissions]
+      summary: List air emissions data
+      parameters:
+        - name: siteId
+          in: query
+          schema:
+            type: integer
+        - name: month
+          in: query
+          schema:
+            type: integer
+        - name: year
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Array of air emissions records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AirEmissionsData'
+    post:
+      tags: [Air Emissions]
+      summary: Create air emissions entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AirEmissionsData'
+      responses:
+        '201':
+          description: Created
+
+  /data/air-emissions/{id}:
+    put:
+      tags: [Air Emissions]
+      summary: Update air emissions entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Updated
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Air Emissions]
+      summary: Delete air emissions entry (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ── Sales ──
+  /data/sales:
+    get:
+      tags: [Sales]
+      summary: List sales data
+      parameters:
+        - name: siteId
+          in: query
+          schema:
+            type: integer
+        - name: month
+          in: query
+          schema:
+            type: integer
+        - name: year
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Array of sales records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SalesData'
+    post:
+      tags: [Sales]
+      summary: Create sales entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SalesData'
+      responses:
+        '201':
+          description: Created
+
+  /data/sales/{id}:
+    put:
+      tags: [Sales]
+      summary: Update sales entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Updated
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Sales]
+      summary: Delete sales entry (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ── Recovery ──
+  /data/recovery:
+    get:
+      tags: [Recovery]
+      summary: List recovery data
+      parameters:
+        - name: siteId
+          in: query
+          schema:
+            type: integer
+        - name: month
+          in: query
+          schema:
+            type: integer
+        - name: year
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Array of recovery records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RecoveryData'
+    post:
+      tags: [Recovery]
+      summary: Create recovery entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecoveryData'
+      responses:
+        '201':
+          description: Created
+
+  /data/recovery/{id}:
+    put:
+      tags: [Recovery]
+      summary: Update recovery entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Updated
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Recovery]
+      summary: Delete recovery entry (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ── Dashboard ──
+  /dashboard/summary:
+    get:
+      tags: [Dashboard]
+      summary: Get KPI summary metrics
+      parameters:
+        - name: year
+          in: query
+          schema:
+            type: integer
+          description: Defaults to current year
+        - name: siteId
+          in: query
+          schema:
+            type: integer
+          description: Filter by site (omit for all sites)
+      responses:
+        '200':
+          description: Summary KPIs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardSummary'
+
+  /dashboard/site-comparison:
+    get:
+      tags: [Dashboard]
+      summary: Site-by-site comparison
+      parameters:
+        - name: year
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Array of site comparisons
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SiteComparison'
+
+  /dashboard/emissions-trend:
+    get:
+      tags: [Dashboard]
+      summary: Monthly energy/emissions trend
+      parameters:
+        - name: year
+          in: query
+          schema:
+            type: integer
+        - name: siteId
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 12-month trend data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/EmissionsTrend'
+
+  # ── Users ──
+  /users:
+    get:
+      tags: [Users]
+      summary: List all users (admin only)
+      responses:
+        '200':
+          description: Array of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Users]
+      summary: Create user (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUser'
+      responses:
+        '201':
+          description: User created
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /users/{id}:
+    get:
+      tags: [Users]
+      summary: Get user details (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: User details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Users]
+      summary: Update user (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUser'
+      responses:
+        '200':
+          description: Updated
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    delete:
+      tags: [Users]
+      summary: Deactivate user (admin only, soft-delete)
+      description: Cannot deactivate your own account.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: User deactivated
+        '400':
+          description: Cannot deactivate own account
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ── Audit ──
+  /audit-logs:
+    get:
+      tags: [Audit]
+      summary: Get audit logs (admin only)
+      parameters:
+        - name: table
+          in: query
+          schema:
+            type: string
+          description: Filter by table name
+        - name: recordId
+          in: query
+          schema:
+            type: integer
+          description: Filter by record ID
+        - name: userId
+          in: query
+          schema:
+            type: integer
+          description: Filter by user who made the change
+      responses:
+        '200':
+          description: Array of audit log entries (max 100)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AuditLog'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ── Telemetry ──
+  /telemetry/error:
+    post:
+      tags: [Telemetry]
+      summary: Report frontend error
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                stack:
+                  type: string
+                componentStack:
+                  type: string
+                url:
+                  type: string
+                userAgent:
+                  type: string
+                timestamp:
+                  type: string
+      responses:
+        '204':
+          description: Error logged
+
+  /telemetry/vitals:
+    post:
+      tags: [Telemetry]
+      summary: Report web-vital performance metric
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  enum: [CLS, FID, FCP, LCP, TTFB, INP]
+                value:
+                  type: number
+                id:
+                  type: string
+                navigationType:
+                  type: string
+                rating:
+                  type: string
+                  enum: [good, needs-improvement, poor]
+      responses:
+        '204':
+          description: Metric logged

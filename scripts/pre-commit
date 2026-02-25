@@ -1,0 +1,30 @@
+#!/bin/sh
+# Pre-commit hook for credential scanning with Gitleaks
+# Install: cp scripts/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+# Or run: npm run hooks:install
+
+# Check if gitleaks is installed
+if ! command -v gitleaks &> /dev/null; then
+    echo "⚠️  gitleaks not found. Install it:"
+    echo "   brew install gitleaks"
+    echo "   OR download from https://github.com/gitleaks/gitleaks/releases"
+    echo ""
+    echo "Skipping credential scan (install gitleaks to enable)."
+    exit 0
+fi
+
+echo "🔒 Scanning staged files for secrets..."
+gitleaks protect --staged --config .gitleaks.toml --verbose
+
+EXIT_CODE=$?
+if [ $EXIT_CODE -ne 0 ]; then
+    echo ""
+    echo "❌ Credential leak detected! Commit blocked."
+    echo ""
+    echo "If this is a false positive, add an allowlist entry to .gitleaks.toml"
+    echo "Or use: git commit --no-verify (NOT recommended)"
+    exit 1
+fi
+
+echo "✅ No secrets detected."
+exit 0
